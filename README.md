@@ -10,8 +10,8 @@ Open `index.html` in a modern browser to play. No installation or server require
 - Local player stats and local leaderboard, saved with localStorage.
 
 ## Important limitations
-- This is an offline prototype, not a deployed website.
-- Only the Math question generator scales with difficulty. Other subjects use a small starter question bank, so repeated questions are possible.
+- Play online at https://angelineymq.github.io/learning-quest/. This is a browser-based prototype with local progress.
+- Hard through Demon use separate, increasingly challenging questions in all six subjects. Longer tests can repeat questions, especially in the English and History banks.
 - The shop uses a provisional integer-only pricing model, not the earlier example formula.
 - No real online accounts, global leaderboard, secure score validation, or gifting. These require a backend.
 - Progress is stored only in this browser and may be lost when browser data is cleared.
