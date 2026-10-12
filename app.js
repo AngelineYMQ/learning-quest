@@ -29,7 +29,7 @@ function showQuestion(resume=false){
       if(question.explanation)test.feedback+=' '+question.explanation;rememberAnswer(right,question);recordGameAnswer(right,question);$('feedback').textContent=test.feedback;$('score').textContent=`${test.correct} correct`;
       [...$('answers').children].forEach(button=>{button.disabled=true;if(button.textContent===question.a)button.classList.add('correct');else if(button===btn)button.classList.add('wrong')});$('next').hidden=false;save();
     };$('answers').appendChild(btn)
-  });renderGame();save();
+  });renderGame();save();if(!resume)$('quiz').scrollIntoView?.({block:'start'});
 }
 
 function finish(){if(test.finished)return;test.finished=true;state.completed++;recordGameFinish();save();render();$('quiz').hidden=true;$('results').hidden=false;$('resultSummary').textContent=`You answered ${test.correct} of ${test.count} correctly (${Math.round(test.correct/test.count*100)}%). Keep learning!`;test.result={id:crypto.randomUUID(),player:test.player,subject:test.subject,difficulty:test.mode==='moe'?(test.stage==='primary'&&test.grade?'MOE P'+test.grade:test.grade&&test.stage!=='primary'?'MOE '+(test.stage==='jc'?'JC':'S')+test.grade:'MOE '+(test.stage==='jc'?'JC':test.stage==='primary'?'Primary':'Secondary')+' overview'):levels[test.level][0],correct:test.correct,total:test.count};state.lastResult=test.result;queueRound({id:test.result.id,kind:'quiz',subject:test.subject,correct:test.correct,total:test.count});save();submitResult()}
