@@ -8,11 +8,11 @@ function primaryPool(subject,grade){
   const scienceNames={'Living things':'Diversity of living and non-living things','Classification':'Diversity of living and non-living things','Materials':'Diversity of materials','Plant parts':'Plant parts and functions','Respiratory system':'Human respiratory and circulatory systems','Circulatory system':'Human respiratory and circulatory systems','Plant transport':'Plant respiratory and circulatory systems','Environment':'Interactions within the environment','Inquiry':'Scientific inquiry'};
   const englishNames={'Reading':'Reading and viewing','Writing':'Writing and representing'};
   const old=MOE_BANK.filter(item=>item.subject===subject).map(item=>({...item,grade:item.subject==='Science'&&item.topic==='Photosynthesis'?6:item.grade,topic:(subject==='Math'?mathNames:subject==='Science'?scienceNames:englishNames)[item.topic]||item.topic}));
-  const planned=new Set((PRIMARY_GUIDE[subject]?.[grade]||[]).map(item=>item.topic));
+  const planned=new Set((PRIMARY_GUIDE[subject]?.[grade]||[]).filter(item=>schoolPool(stage,subject,grade,item.topic).length>0).map(item=>item.topic));
   return [...old,...PRIMARY_EXTRA_BANK.filter(item=>item.subject===subject)].filter(item=>item.grade===grade&&planned.has(item.topic));
 }
 function schoolTopics(stage,subject,grade){
-  return stage==='primary'?(PRIMARY_GUIDE[subject]?.[grade]||[]).map(item=>item.topic):[...new Set(schoolPool(stage,subject,grade).map(item=>item.topic))];
+  return stage==='primary'?(PRIMARY_GUIDE[subject]?.[grade]||[]).filter(item=>schoolPool(stage,subject,grade,item.topic).length>0).map(item=>item.topic):[...new Set(schoolPool(stage,subject,grade).map(item=>item.topic))];
 }
 function schoolPool(stage,subject,grade,topic='All'){
   const bank=stage==='primary'?primaryPool(subject,grade):SCHOOL_BANK;
