@@ -49,7 +49,7 @@ function startReview(){
 }
 function answerReview(choice){
  const s=extraState(),r=s.review;if(!r||r.finished||r.paused||r.answered)return;const item=r.questions[r.i];if(!item.question.choices.includes(choice))return;
- r.answered=true;r.chosen=choice;const right=choice===item.question.a;if(typeof recordProfileAnswer==='function')recordProfileAnswer(right);
+ r.answered=true;r.chosen=choice;const right=choice===item.question.a;if(typeof recordLearningAnswer==='function')recordLearningAnswer(right,item.question,item);if(typeof recordProfileAnswer==='function')recordProfileAnswer(right);
  if(right){r.correct++;r.combo=(r.combo||0)+1;const record=s.book[item.key];if(record){record.reviewWins=(Number(record.reviewWins)||0)+1;if(record.reviewWins>=2)delete s.book[item.key]}
   const g=gameState();g.daily.correct++;g.bestCombo=Math.max(g.bestCombo,r.combo);earnBadges(true);const xp=award(levels[item.level][1]);r.feedback='Correct! +'+sci(xp)+' XP.'+(s.book[item.key]?' One more correct review to master this question.':' Mastered! Removed from your mistake book.');
  }else{r.combo=0;rememberAnswer(false,item.question,item);r.feedback='Correct answer: '+item.question.a+'.'}
@@ -76,7 +76,7 @@ function chooseMatch(side,id){
  const r=extraState().match;if(!r||r.finished||!['left','right'].includes(side)||!r.pairs.some(p=>p.id===id)||r.matched.includes(id))return;if(Date.now()>=r.deadline){finishMatch();return}matchSelection[side]=id;
  if(matchSelection.left!==null&&matchSelection.right!==null){
   if(typeof recordProfileAnswer==='function')recordProfileAnswer(matchSelection.left===matchSelection.right);
-  if(matchSelection.left===matchSelection.right){r.matched.push(id);r.combo++;const g=gameState();g.daily.correct++;g.bestCombo=Math.max(g.bestCombo,r.combo);earnBadges(true);const xp=award(5);r.xp=(BigInt(r.xp)+xp).toString();$('matchFeedback').textContent='✅ Matched! Combo '+r.combo;}
+  if(matchSelection.left===matchSelection.right){if(typeof recordLearningAnswer==='function')recordLearningAnswer(true,{q:r.pairs.find(p=>p.id===id).left+' = '+r.pairs.find(p=>p.id===id).right},{mode:'match',subject:r.subject});r.matched.push(id);r.combo++;const g=gameState();g.daily.correct++;g.bestCombo=Math.max(g.bestCombo,r.combo);earnBadges(true);const xp=award(5);r.xp=(BigInt(r.xp)+xp).toString();$('matchFeedback').textContent='✅ Matched! Combo '+r.combo;}
   else{r.mistakes++;r.combo=0;$('matchFeedback').textContent='Not a match. Try again!'}
   matchSelection={left:null,right:null};save();if(r.matched.length===r.pairs.length){finishMatch();return}
  }

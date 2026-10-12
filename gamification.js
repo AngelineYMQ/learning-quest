@@ -28,6 +28,7 @@ function celebrate(message){
 }
 function earnBadges(notify=false){const g=gameState();for(const [id,icon,title,description,eligible] of GAME_BADGES){if(eligible(g)&&!Object.hasOwn(g.badges,id)){g.badges[id]=Date.now();if(notify)celebrate(icon+' Badge unlocked: '+title)}}}
 function recordGameAnswer(right,question){
+  if(typeof recordLearningAnswer==='function')recordLearningAnswer(right,question,test);
   if(typeof recordProfileAnswer==='function')recordProfileAnswer(right);
   const g=gameState();test.combo=right?(test.combo||0)+1:0;
   if(right){g.daily.correct++;g.bestCombo=Math.max(g.bestCombo,test.combo);if(test.combo>=3)celebrate('⚡ '+test.combo+' correct in a row!')}
@@ -63,7 +64,7 @@ function renderGame(){
   const active=test&&!test.finished;const blocked=active&&test.heartMode&&test.hearts<=0;
   $('heartStatus').textContent=active?(test.heartMode?'♥'.repeat(test.hearts??5)+'♡'.repeat(5-(test.hearts??5))+' · '+(test.hearts??5)+' hearts':'∞ Relaxed practice'):'Choose relaxed practice or a 5-heart challenge';
   $('comboStatus').textContent=active?'⚡ Combo: '+(test.combo||0):'⚡ Best combo: '+g.bestCombo;
-  $('heartHelp').hidden=!blocked;if(active)$('next').disabled=Boolean(blocked);renderExtrasSummary();
+  $('heartHelp').hidden=!blocked;if(active)$('next').disabled=Boolean(blocked);renderExtrasSummary();if(typeof renderLearningRewards==='function')renderLearningRewards();
 
 }
 function initGame(){
