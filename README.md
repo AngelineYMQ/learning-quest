@@ -6,7 +6,7 @@ Open `index.html` in a modern browser to play. No installation or server require
 - Math, Science, English, Geography, History and Coding tests; 9 difficulty levels; 5, 10, 20 or 50 questions.
 - XP earned for correct answers; separate lifetime and spendable XP.
 - Daily streaks and compounded 1.01^(streak-1) bonus, shield protection.
-- XP boosts from 1.5× through 1 undecillion×, durations from 1 minute to 720 hours.
+- XP boosts from 1.5× through 1 quinvigintillion× (10^78×), durations from 1 minute to 720 hours.
 - Local player stats and local leaderboard, saved with localStorage.
 
 ## Important limitations
