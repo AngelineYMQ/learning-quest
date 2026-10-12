@@ -40,3 +40,6 @@ Deploy extras.js and match-bank.js with all existing frontend files. The worker 
 
 ## Profile layout and English interface
 Profile opens from the avatar button in the upper-right header, separate from practice navigation. Nicknames are edited in Profile. The interface, challenge messages and avatar controls use English; language-subject questions retain their teaching language. Original customizable SVG avatars now use chibi proportions, bright eyes and pastel colours. Existing player identities, avatar selections and saved progress are retained.
+
+## Chinese revision expansion
+chinese-practice.js adds 114 original questions to existing P1–P6 Chinese practice. Every grade now has 102 deduplicated checks across eight topics, each with at least ten distinct questions, supporting five- and ten-question sessions. Reading uses lower, middle and upper primary bands; other foundational checks are shared across grades. Notification/dialogue text is used for reading-based listening and speaking concept checks, not actual audio or oral assessment. This does not claim complete textbook coverage. Topic selectors use English labels while Chinese question text and stored topic keys remain unchanged. Include chinese-practice.js immediately after primary-expansion.js in deployments.
