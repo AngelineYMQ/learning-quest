@@ -19,7 +19,7 @@ async function handle(request, env) {
         try { result = JSON.parse(body); } catch { return json({error:'Invalid result'},400); }
         const {id, subject, difficulty, correct, total} = result;
         const player = typeof result.player === 'string' ? result.player.trim() : '';
-        if (!/^[0-9a-f-]{36}$/i.test(id || '') || !/^[\p{L}\p{N}_ .-]{2,20}$/u.test(player) || !subjects.includes(subject) || !levels.includes(difficulty) || ![5,10,20,50].includes(total) || !Number.isInteger(correct) || correct < 0 || correct > total) return json({error:'Please use a name of 2–20 letters or numbers and a valid completed test.'},400);
+        if (!/^[0-9a-f-]{36}$/i.test(id || '') || !/^[\p{L}\p{N}_ .-]{2,20}$/u.test(player) || !subjects.includes(subject) || !(levels.includes(difficulty)||/^MOE P[1-6]$/.test(difficulty)) || (!Number.isInteger(total)||total<1||total>50) || !Number.isInteger(correct) || correct < 0 || correct > total) return json({error:'Please use a name of 2–20 letters or numbers and a valid completed test.'},400);
         await env.DB.prepare(schema).run();
         // A test's UUID makes retrying a failed request safe, without duplicate records.
         await env.DB.prepare('INSERT OR IGNORE INTO learning_quest_results (id,player,subject,difficulty,correct,total) VALUES (?,?,?,?,?,?)').bind(id,player,subject,difficulty,correct,total).run();
