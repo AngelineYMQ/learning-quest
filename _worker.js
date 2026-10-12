@@ -21,10 +21,10 @@ function gamePeriods(now=Date.now()){
  return {week:new Date(monday*day).toISOString().slice(0,10),start:new Date(start).toISOString(),end:new Date(start+7*day).toISOString(),previous:new Date((monday-7)*day).toISOString().slice(0,10),previousStart:new Date(start-7*day).toISOString(),month:local.toISOString().slice(0,7)};
 }
 class SocialError extends Error{constructor(status,message){super(message);this.status=status}}
-async function socialBody(request){
+async function socialBody(request,limit=8192){
  if(!request.headers.get('Content-Type')?.startsWith('application/json'))throw new SocialError(415,'Please send JSON.');
  const reader=request.body?.getReader();if(!reader)throw new SocialError(400,'Missing request.');const chunks=[];let size=0;
- while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>8192){await reader.cancel();throw new SocialError(413,'Request too large.')}chunks.push(value)}
+ while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>limit){await reader.cancel();throw new SocialError(413,'Request too large.')}chunks.push(value)}
  const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}
  let data;try{data=JSON.parse(new TextDecoder().decode(bytes))}catch{throw new SocialError(400,'Invalid JSON.')}
  if(!data||typeof data!=='object'||Array.isArray(data))throw new SocialError(400,'Invalid request.');return data;
@@ -32,10 +32,12 @@ async function socialBody(request){
 const socialAll=async(db,sql,...args)=>(await db.prepare(sql).bind(...args).all()).results;
 const socialOne=async(db,sql,...args)=>(await socialAll(db,sql,...args))[0];
 async function socialAuth(request,db,allowNew=false){
+ const session=await accountSession(request,db);if(session)return {id:session.player_id,hash:session.key_hash,player:{id:session.player_id,name:session.name,avatar:session.avatar,key_hash:session.key_hash}};
  const id=request.headers.get('X-Player-Id'),key=request.headers.get('Authorization')?.replace(/^Bearer /,'');
  if(!UUID.test(id||'')||!/^\w{64}$/.test(key||'')||!/^[0-9a-f]+$/i.test(key))throw new SocialError(401,'Open Profile and save your player profile first.');
  const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(key)))].map(n=>n.toString(16).padStart(2,'0')).join('');
  const player=await socialOne(db,'SELECT * FROM lq_players WHERE id = ?',id);
+ if(player&&await socialOne(db,'SELECT username FROM lq_accounts WHERE player_id=?',id))throw new SocialError(401,'Please log in to this account.');
  if(player&&player.key_hash!==hash)throw new SocialError(401,'This player profile could not be verified. Restore your own progress backup.');
  if(!player&&!allowNew)throw new SocialError(401,'Save your profile before using online challenges.');
  return {id,hash,player};
@@ -62,7 +64,7 @@ async function handleSocial(request,env){
  if(!permitted[path].includes(request.method))return json({error:'Method not allowed'},405);
  if(request.method==='POST'&&![new URL(request.url).origin,'https://angelineymq.github.io'].includes(request.headers.get('Origin')))return json({error:'Invalid origin'},403);
  try{
-  await db.batch(SOCIAL_SCHEMA.map(sql=>db.prepare(sql)));const auth=await socialAuth(request,db,path==='/api/player'),period=gamePeriods(),stamp=new Date(Date.now()).toISOString();
+  await db.batch([...SOCIAL_SCHEMA,...ACCOUNT_SCHEMA].map(sql=>db.prepare(sql)));const auth=await socialAuth(request,db,path==='/api/player'),period=gamePeriods(),stamp=new Date(Date.now()).toISOString();
   if(path==='/api/player'){
    const data=await socialBody(request),name=typeof data.name==='string'?data.name.trim():'',avatar=avatarValue(data.avatar);
    if(!/^[\p{L}\p{N}_ .-]{2,20}$/u.test(name)||!avatar)throw new SocialError(400,'Use a nickname of 2–20 letters or numbers and the available avatar options.');
@@ -109,9 +111,64 @@ async function handleSocial(request,env){
  }catch(error){if(error instanceof SocialError)return json({error:error.message},error.status);console.error('Online challenge request failed',error);return json({error:'Online challenges are temporarily unavailable. Please retry.'},503)}
 }
 
+const ACCOUNT_SCHEMA=[
+ `CREATE TABLE IF NOT EXISTS lq_accounts (username TEXT PRIMARY KEY, player_id TEXT NOT NULL UNIQUE, salt TEXT NOT NULL, password_hash TEXT NOT NULL, progress TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1)`,
+ `CREATE TABLE IF NOT EXISTS lq_sessions (token_hash TEXT PRIMARY KEY, player_id TEXT NOT NULL, expires INTEGER NOT NULL)`,
+ `CREATE TABLE IF NOT EXISTS lq_login_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, expires INTEGER NOT NULL)`
+];
+const hex=bytes=>[...new Uint8Array(bytes)].map(n=>n.toString(16).padStart(2,'0')).join('');
+const digest=async value=>hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)));
+async function passwordHash(password,salt){const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']);return hex(await crypto.subtle.deriveBits({name:'PBKDF2',salt:new TextEncoder().encode(salt),iterations:100000,hash:'SHA-256'},key,256))}
+function sameHash(a,b){if(a.length!==b.length)return false;let difference=0;for(let i=0;i<a.length;i++)difference|=a.charCodeAt(i)^b.charCodeAt(i);return difference===0}
+async function accountSession(request,db){const token=request.headers.get('Cookie')?.match(/(?:^|;\s*)lq_session=([a-f0-9]{64})(?:;|$)/)?.[1];if(!token)return null;return socialOne(db,'SELECT a.*,p.key_hash,p.name,p.avatar FROM lq_sessions s JOIN lq_accounts a ON a.player_id=s.player_id JOIN lq_players p ON p.id=s.player_id WHERE s.token_hash=? AND s.expires>?',await digest(token),Date.now())}
+function cleanProgress(input){
+ if(!input||typeof input!=='object'||Array.isArray(input)||!/^\d{1,2000}$/.test(input.lifetime)||!/^\d{1,2000}$/.test(input.wallet)||!Number.isSafeInteger(input.completed)||input.completed<0||!Number.isSafeInteger(input.streak)||input.streak<0||!Number.isFinite(input.playSeconds)||input.playSeconds<0)throw new SocialError(400,'This progress could not be saved. Export a backup and retry.');
+ const value=JSON.parse(JSON.stringify(input));delete value.account;delete value.savedAt;if(value.social){delete value.social.key;delete value.social.id;delete value.social.registered}const text=JSON.stringify(value);if(new TextEncoder().encode(text).length>1500000)throw new SocialError(413,'Progress is too large. Export a backup.');return text;
+}
+const accountCookie=(token,maxAge)=>'lq_session='+token+'; Path=/; HttpOnly; SameSite=Strict; Max-Age='+maxAge+'; Secure';
+async function accountResponse(db,account){return {username:account.username,id:account.player_id,name:account.name,avatar:JSON.parse(account.avatar),revision:account.revision,progress:JSON.parse(account.progress)}}
+async function handleAccount(request,env){
+ const db=env.DB,path=new URL(request.url).pathname,origin=new URL(request.url).origin;
+ if(request.method!=='GET'&&request.headers.get('Origin')!==origin)return json({error:'Please sign in on this website.'},403);
+ try{
+  await db.batch([...SOCIAL_SCHEMA,...ACCOUNT_SCHEMA].map(sql=>db.prepare(sql)));
+  if(path==='/api/account'&&request.method==='GET'){const a=await accountSession(request,db);return a?json(await accountResponse(db,a)):json({error:'Please log in.'},401)}
+  if(request.method!=='POST')return json({error:'Method not allowed'},405);
+  if(path==='/api/account/logout'){const token=request.headers.get('Cookie')?.match(/(?:^|;\s*)lq_session=([a-f0-9]{64})(?:;|$)/)?.[1];if(token)await db.prepare('DELETE FROM lq_sessions WHERE token_hash=?').bind(await digest(token)).run();const r=json({saved:true});r.headers.set('Set-Cookie',accountCookie('',0));return r}
+  if(path==='/api/account/progress'){
+   const a=await accountSession(request,db);if(!a)throw new SocialError(401,'Please log in again. Your progress is kept on this device.');const data=await socialBody(request,1600000),progress=cleanProgress(data.progress);
+   if(!Number.isSafeInteger(data.revision)||data.revision<1)throw new SocialError(400,'Invalid save version.');
+   const result=await db.prepare('UPDATE lq_accounts SET progress=?,revision=revision+1 WHERE player_id=? AND revision=?').bind(progress,a.player_id,data.revision).run();
+   if(!result.meta?.changes)throw new SocialError(409,'Another device has newer progress. Export this device’s backup, then load the cloud version.');return json({saved:true,revision:data.revision+1});
+  }
+  if(!['/api/account/register','/api/account/login'].includes(path))return json({error:'Not found'},404);
+  const data=await socialBody(request,1600000),username=typeof data.username==='string'?data.username.trim().toLowerCase():'',password=data.password;
+  if(!/^[a-z0-9_]{3,20}$/.test(username)||typeof password!=='string'||password.length<6||password.length>128)throw new SocialError(400,'Use a username of 3–20 letters, numbers or underscores and a password of 6–128 characters.');
+  // Durable limits prevent repeated password guessing and account creation bursts.
+  const stamp=Date.now(),ip=request.headers.get('CF-Connecting-IP')||'local',keys=[await digest('ip:'+ip),await digest('user:'+username)];
+  for(const key of keys){await db.prepare('INSERT INTO lq_login_limits(key,count,expires) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN expires<? THEN 1 ELSE count+1 END,expires=CASE WHEN expires<? THEN excluded.expires ELSE expires END').bind(key,stamp+900000,stamp,stamp).run();const row=await socialOne(db,'SELECT count FROM lq_login_limits WHERE key=?',key);if(row.count>(key===keys[0]?60:12))throw new SocialError(429,'Too many attempts. Please try again in 15 minutes.')}
+  let account=await socialOne(db,'SELECT * FROM lq_accounts WHERE username=?',username);
+  if(path.endsWith('/register')){
+   if(account)throw new SocialError(409,'That username is taken. Try adding a number.');
+   const owner=await socialAuth(request,db,true),progress=cleanProgress(data.progress),avatar=avatarValue(data.avatar);
+   if(!avatar)throw new SocialError(400,'Choose an available avatar.');
+   if(await socialOne(db,'SELECT username FROM lq_accounts WHERE player_id=?',owner.id))throw new SocialError(409,'This profile already has an account. Please log in.');
+   const salt=hex(crypto.getRandomValues(new Uint8Array(16))),hash=await passwordHash(password,salt),name=owner.player?.name||username;
+   try{await db.batch([db.prepare('INSERT INTO lq_players(id,key_hash,name,avatar,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind(owner.id,owner.hash,name,JSON.stringify(avatar),new Date().toISOString()),db.prepare('INSERT INTO lq_accounts(username,player_id,salt,password_hash,progress,revision) VALUES(?,?,?,?,?,1)').bind(username,owner.id,salt,hash,progress)])}catch(error){if(String(error).includes('UNIQUE'))throw new SocialError(409,'That username or nickname is taken. Choose another.');throw error}
+   account=await socialOne(db,'SELECT * FROM lq_accounts WHERE username=?',username);
+  }else{
+   const hash=await passwordHash(password,account?.salt||'unknown-account-salt');if(!account||!sameHash(hash,account.password_hash))throw new SocialError(401,'Username or password is incorrect.');
+  }
+  const token=hex(crypto.getRandomValues(new Uint8Array(32)));
+  await db.prepare('DELETE FROM lq_sessions WHERE expires<?').bind(stamp).run();await db.prepare('INSERT INTO lq_sessions(token_hash,player_id,expires) VALUES(?,?,?)').bind(await digest(token),account.player_id,stamp+30*86400000).run();
+  const player=await socialOne(db,'SELECT name,avatar FROM lq_players WHERE id=?',account.player_id),r=json(await accountResponse(db,{...account,...player}));r.headers.set('Set-Cookie',accountCookie(token,30*86400));return r;
+ }catch(error){if(error instanceof SocialError)return json({error:error.message},error.status);console.error('Account request failed',error);return json({error:'Account service is unavailable. Please try again.'},503)}
+}
+
 async function handle(request, env) {
     const url = new URL(request.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
+    if(url.pathname==='/api/account'||url.pathname.startsWith('/api/account/'))return env.DB?handleAccount(request,env):json({error:'Account service is unavailable.'},503);
     if (url.pathname !== '/api/leaderboard') {if(!env.DB)return json({error:'Online challenges are temporarily unavailable.'},503);return handleSocial(request,env);}
     if (!env.DB) return json({error:'Leaderboard is temporarily unavailable.'},503);
     try {
