@@ -28,6 +28,7 @@ function celebrate(message){
 }
 function earnBadges(notify=false){const g=gameState();for(const [id,icon,title,description,eligible] of GAME_BADGES){if(eligible(g)&&!Object.hasOwn(g.badges,id)){g.badges[id]=Date.now();if(notify)celebrate(icon+' Badge unlocked: '+title)}}}
 function recordGameAnswer(right,question){
+  if(typeof recordProfileAnswer==='function')recordProfileAnswer(right);
   const g=gameState();test.combo=right?(test.combo||0)+1:0;
   if(right){g.daily.correct++;g.bestCombo=Math.max(g.bestCombo,test.combo);if(test.combo>=3)celebrate('⚡ '+test.combo+' correct in a row!')}
   else if(test.heartMode)test.hearts=Math.max(0,(test.hearts??5)-1);
