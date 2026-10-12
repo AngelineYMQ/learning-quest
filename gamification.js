@@ -63,12 +63,7 @@ function renderGame(){
   $('heartStatus').textContent=active?(test.heartMode?'♥'.repeat(test.hearts??5)+'♡'.repeat(5-(test.hearts??5))+' · '+(test.hearts??5)+' hearts':'∞ Relaxed practice'):'Choose relaxed practice or a 5-heart challenge';
   $('comboStatus').textContent=active?'⚡ Combo: '+(test.combo||0):'⚡ Best combo: '+g.bestCombo;
   $('heartHelp').hidden=!blocked;if(active)$('next').disabled=Boolean(blocked);
-  $('learningTrail').replaceChildren();
-  if($('practiceMode').value!=='moe'){$('trailNote').textContent='Choose School syllabus practice to explore a topic trail.';return}
-  const stage=$('schoolStage').value,subject=$('subject').value,grade=Number($('primaryGrade').value);
-  const topics=[...new Set(schoolPool(stage,subject,grade).map(question=>question.topic))];
-  $('trailNote').textContent='Choose a topic for a short lesson. A tested topic earns a star at 80% accuracy or above. This trail tracks practice, not full syllabus mastery.';
-  topics.forEach((topic,index)=>{const key=JSON.stringify([stage,subject,grade,topic]),done=Number(g.paths[key])>0;const button=document.createElement('button');button.className='trail-node '+(done?'done':'');button.textContent=(done?'★':'▶')+' '+(index+1)+'. '+topic;button.onclick=()=>{$('moeTopic').value=topic;configureMoe(false,false);const options=[...$('count').options].map(option=>Number(option.value));$('count').value=options.includes(5)?5:options[0];$('start').onclick()};$('learningTrail').appendChild(button)})
+
 }
 function initGame(){
   $('dailyGoal').onchange=()=>{gameState().goal=Number($('dailyGoal').value);save();renderGame()};
