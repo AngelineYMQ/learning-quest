@@ -35,20 +35,20 @@ function recordGameAnswer(right,question){
   if(!test.answerResults.some(answer=>answer.index===test.i))test.answerResults.push({index:test.i,right,topic:question.topic||'Arcade'});
   earnBadges(true);renderGame();
 }
-function recordGameFinish(){
+function recordGameFinish(round=test){
   const g=gameState();g.daily.completed++;
-  if(test.correct===test.count){g.daily.perfect++;g.perfectTests++;celebrate('🏆 Perfect round! Every answer correct!')}
+  if(round.correct===round.count){g.daily.perfect++;g.perfectTests++;celebrate('🏆 Perfect round! Every answer correct!')}
   else celebrate('🎉 Lesson complete! Keep exploring!');
-  if(test.mode==='moe'){
-    const groups=new Map();for(const answer of test.answerResults||[]){const totals=groups.get(answer.topic)||{correct:0,total:0};totals.total++;if(answer.right)totals.correct++;groups.set(answer.topic,totals)}
-    for(const [topic,totals] of groups)if(totals.correct/totals.total>=0.8){const key=JSON.stringify([test.stage,test.subject,test.grade,topic]);g.paths[key]=(Number(g.paths[key])||0)+1}
+  if(round.mode==='moe'){
+    const groups=new Map();for(const answer of round.answerResults||[]){const totals=groups.get(answer.topic)||{correct:0,total:0};totals.total++;if(answer.right)totals.correct++;groups.set(answer.topic,totals)}
+    for(const [topic,totals] of groups)if(totals.correct/totals.total>=0.8){const key=JSON.stringify([round.stage,round.subject,round.grade,topic]);g.paths[key]=(Number(g.paths[key])||0)+1}
   }
   earnBadges(true);renderGame();
 }
 function claimDaily(kind){
   const g=gameState(),quests={goal:[g.daily.correct,g.goal,5],lessons:[g.daily.completed,2,5],perfect:[g.daily.perfect,1,5]};
   const quest=quests[kind];if(!quest||quest[0]<quest[1]||g.daily.claimed[kind])return;
-  g.daily.claimed[kind]=true;g.stars+=quest[2];if(kind==='goal')g.goalsClaimed++;earnBadges(true);save();renderGame();celebrate('💎 +5 gems! Daily quest complete!');
+  g.daily.claimed[kind]=true;trackMonthly(kind);g.stars+=quest[2];if(kind==='goal')g.goalsClaimed++;earnBadges(true);save();renderGame();celebrate('💎 +5 gems! Daily quest complete!');
 }
 function renderGame(){
   if(!$('dailyQuests'))return;const g=gameState();earnBadges();
@@ -62,7 +62,7 @@ function renderGame(){
   const active=test&&!test.finished;const blocked=active&&test.heartMode&&test.hearts<=0;
   $('heartStatus').textContent=active?(test.heartMode?'♥'.repeat(test.hearts??5)+'♡'.repeat(5-(test.hearts??5))+' · '+(test.hearts??5)+' hearts':'∞ Relaxed practice'):'Choose relaxed practice or a 5-heart challenge';
   $('comboStatus').textContent=active?'⚡ Combo: '+(test.combo||0):'⚡ Best combo: '+g.bestCombo;
-  $('heartHelp').hidden=!blocked;if(active)$('next').disabled=Boolean(blocked);
+  $('heartHelp').hidden=!blocked;if(active)$('next').disabled=Boolean(blocked);renderExtrasSummary();
 
 }
 function initGame(){
