@@ -13,3 +13,10 @@ GitHub Pages serves the same frontend and uses https://cyrusli.space/api/leaderb
 
 ## MOE primary practice
 The default mode adds selected primary mathematics, science and English practice, with level/topic filters, explanations and current MOE source links in curriculum.js. 600 parameterised mathematics items, 60 science items, and 45 English items used across three two-year practice bands (90 level-tagged records). These are original MCQs, not MOE official questions, and do not cover all syllabus outcomes. Arcade mode retains the six original subjects and advanced questions. Include curriculum.js in Cloudflare deployments.
+
+## School subjects and saved sessions
+subject-library.js adds the subject directory consulted on MOE primary, secondary and pre-university pages (11 / 30 / 30 entries) and 272 original introductory concept questions. These starter banks are not complete grade-, G- or H-level courses; school-specific and third-language subjects may differ. Official document titles and links are preserved in each course's source list.
+
+An active test, its exact question/choices, selected answer, correct count and feedback save to localStorage after each question and navigation. Refresh the same browser/address, then choose Continue saved test. Answered questions remain disabled so XP is not awarded again. Inventory offers JSON export/import for moving progress to another origin/browser. The leaderboard remains cloud-backed; personal snapshots are browser-local and are not accounts or automatic cross-device sync.
+
+Deploy subject-library.js alongside the existing files. _worker.js accepts the new subject names and overview labels.

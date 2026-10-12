@@ -3,3 +3,5 @@
 .table-scroll{overflow-x:auto}#rankings td{overflow-wrap:anywhere}#boardStatus,#resultSave{min-height:1.5em}
 
 .syllabus-info{margin:16px 0;color:#c9d3e5}.syllabus-info summary{cursor:pointer}.syllabus-info a,#curriculumNote a{color:#9dc9ff}#questionTopic{font-weight:600}
+
+#resumeCard{padding:14px;border:1px solid #657bff;border-radius:12px;margin-bottom:20px}#subjectDirectory details{padding:8px 0;border-bottom:1px solid #293556}.profile{max-width:400px}[hidden]{display:none!important}
