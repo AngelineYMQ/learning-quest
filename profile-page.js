@@ -4,7 +4,7 @@ let profilePage='play';
 function openLearningPage(page,push=true){
  if(!PROFILE_PAGES.includes(page))page='play';profilePage=page;
  if(push&&location.hash!=='#/'+page)history.pushState({page},'','#/'+page);
- document.body.dataset.page=page;
+ document.body.dataset.page=page;if(typeof renderAccountReminder==='function')renderAccountReminder();
  document.querySelectorAll('[data-tab]').forEach(button=>button.classList.toggle('active',button.dataset.tab===page));
  document.querySelectorAll('main>section.panel').forEach(panel=>panel.hidden=panel.id!==page);
  document.title=(page==='profile'?'Profile · ':'')+'Learning Quest';render();extraTabChanged(page);

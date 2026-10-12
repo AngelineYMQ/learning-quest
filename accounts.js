@@ -1,9 +1,9 @@
 'use strict';
-let accountReady=false,accountBusy=false,accountBlocked=false,accountTimer=null,accountLast='',accountChanged=false;
+let accountSnoozedUntil=0,accountReady=false,accountBusy=false,accountBlocked=false,accountTimer=null,accountLast='',accountChanged=false;
 function accountProgress(){const value=JSON.parse(JSON.stringify(state));delete value.account;delete value.savedAt;if(value.social){delete value.social.key;delete value.social.id;delete value.social.registered}return value}
 function accountMessage(text){if($('accountStatus'))$('accountStatus').textContent=text;if(state.account&&$('saveStatus'))$('saveStatus').textContent=text}
-function renderAccount(){if(!$('accountForm'))return;const signed=!!state.account;$('accountForm').hidden=signed;$('accountSigned').hidden=!signed;$('accountUsernameText').textContent=signed?'Logged in as '+state.account.username:'';$('accountLoad').hidden=!accountBlocked;$('reset').hidden=signed;$('importProgress').hidden=signed;}
-function accountSaved(){if(!accountReady||!state.account)return;const serialized=JSON.stringify(accountProgress());if(serialized===accountLast)return;accountLast=serialized;accountChanged=true;state.account.dirty=true;try{localStorage.setItem(KEY,JSON.stringify(state))}catch{}clearTimeout(accountTimer);accountTimer=setTimeout(syncAccount,900)}
+function renderAccount(){renderAccountReminder();if(!$('accountForm'))return;const signed=!!state.account;$('accountForm').hidden=signed;$('accountSigned').hidden=!signed;$('accountUsernameText').textContent=signed?'Logged in as '+state.account.username:'';$('accountLoad').hidden=!accountBlocked;$('reset').hidden=signed;$('importProgress').hidden=signed;}
+function accountSaved(){renderAccountReminder();if(!accountReady||!state.account)return;const serialized=JSON.stringify(accountProgress());if(serialized===accountLast)return;accountLast=serialized;accountChanged=true;state.account.dirty=true;try{localStorage.setItem(KEY,JSON.stringify(state))}catch{}clearTimeout(accountTimer);accountTimer=setTimeout(syncAccount,900)}
 async function accountRequest(path,method='GET',body){const response=await fetch(EXTRA_API+'/account'+path,{method,credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(15000),headers:method==='POST'?{'Content-Type':'application/json'}:{},...(body?{body:JSON.stringify(body)}:{})});const data=await response.json();if(!response.ok){const error=new Error(data.error||'Please try again.');error.status=response.status;throw error}return data}
 function keepDeviceBackup(){try{localStorage.setItem('learningQuest_beforeLogin',JSON.stringify(state))}catch{throw new Error('Export a progress backup before logging in. This browser cannot keep a safety copy.')}}
 function applyAccount(data){
@@ -37,6 +37,7 @@ async function logoutAccount(){
  accountBusy=true;try{await accountRequest('/logout','POST',{});accountReady=false;test=null;pendingSession=null;state={...defaults};save();render();showResume();renderProfile();renderReview();renderMatching();renderProfileDashboard();renderLearningRewards();accountBlocked=false;accountChanged=false;accountLast='';accountReady=true;renderAccount();accountMessage('Logged out. Your account progress is safely stored online.')}catch(error){accountMessage(error.message)}finally{accountBusy=false}
 }
 async function initAccounts(){
+ $('accountSetup').onclick=openAccountSetup;$('accountLater').onclick=()=>{accountSnoozedUntil=Date.now()+86400000;try{localStorage.setItem('learningQuest_accountReminderUntil',String(accountSnoozedUntil))}catch{}$('accountReminder').hidden=true};
  $('accountLogin').onclick=()=>submitAccount('login');$('accountRegister').onclick=()=>submitAccount('register');$('accountLogout').onclick=logoutAccount;$('accountLoad').onclick=loadAccount;$('loginPassword').onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();submitAccount('login')}};
  $('accountRetry').onclick=()=>{accountBlocked=false;renderAccount();accountChanged=true;syncAccount()};
  $('accountRelogin').onclick=()=>{$('accountForm').hidden=false;$('loginUsername').value=state.account?.username||'';$('loginPassword').focus()};
@@ -46,4 +47,14 @@ async function initAccounts(){
  finally{document.querySelector('main').inert=false;accountReady=true;accountLast=JSON.stringify(accountProgress());renderAccount();syncAccount()}
  window.addEventListener('online',()=>{if(!accountBlocked)syncAccount()});window.addEventListener('focus',async()=>{if(!state.account||accountBusy||accountBlocked)return;await syncAccount();if(accountChanged||accountBusy)return;try{const own=state.account,data=await accountRequest('');if(state.account!==own)return;if(data.revision!==own.revision){if(accountChanged){accountBlocked=true;renderAccount();accountMessage('Another device has newer progress. Export a backup, then load the cloud version.')}else applyAccount(data)}}catch{}});
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')syncAccount()});
+}
+
+function needsAccountSetup(){return !state.account&&!!(state.social?.registered||Number(state.completed)>0||/^\d+$/.test(state.lifetime)&&BigInt(state.lifetime)>0n||state.activeTest||pendingSession)}
+function renderAccountReminder(){
+ if(!$('accountReminder'))return;const existing=needsAccountSetup();let snoozed=accountSnoozedUntil>Date.now();try{snoozed=snoozed||Number(localStorage.getItem('learningQuest_accountReminderUntil')||0)>Date.now()}catch{}
+ $('accountReminder').hidden=!existing||snoozed||document.body.dataset.page==='profile';if($('accountMigrationInfo'))$('accountMigrationInfo').hidden=!existing;
+}
+function openAccountSetup(){
+ openLearningPage('profile');$('accountForm').hidden=false;const suggested=state.username?.trim().toLowerCase();if(!$('loginUsername').value&&suggested!=='player_1'&&/^[a-z0-9_]{3,20}$/.test(suggested||''))$('loginUsername').value=suggested;
+ accountMessage('To keep this device’s progress, choose a username and password, then select Create account & save my progress. Already have an account on another device? Log in instead.');$('loginUsername').focus();
 }
