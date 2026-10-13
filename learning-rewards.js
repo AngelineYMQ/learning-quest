@@ -66,6 +66,6 @@ function renderLearningRewards(){
 function initLearningRewards(){
  learningRewards();$('petKind').value=learningRewards().pet.kind;$('petName').value=learningRewards().pet.name;
  $('petKind').onchange=()=>{const p=learningRewards().pet;p.kind=PET_KINDS.includes($('petKind').value)?$('petKind').value:'fox';save();renderLearningRewards()};
- $('savePetName').onclick=async()=>{const name=$('petName').value.trim();if(!name||name.length>16){$('petMessage').textContent='Choose a pet name with 1–16 characters.';return}learningRewards().pet.name=name;save();renderLearningRewards();$('petMessage').textContent='Pet name saved.'};$('feedPet').onclick=feedLearningPet;$('petHello').onclick=()=>{$('petMessage').textContent=learningRewards().pet.name+' says: You can do it! One question at a time.'};
+ $('savePetName').onclick=async()=>{const name=$('petName').value.trim();if(!name||name.length>16){$('petMessage').textContent='Choose a pet name with 1–16 characters.';return}learningRewards().pet.name=name;save();renderLearningRewards();$('petMessage').textContent=state.account?'Saving pet name to your account…':'Pet name saved on this browser.';if(state.account){await syncAccount();$('petMessage').textContent=accountChanged?'Pet name is kept here. Check Profile for the sync status.':'Pet name saved to your account.'}} ;$('feedPet').onclick=feedLearningPet;$('petHello').onclick=()=>{$('petMessage').textContent=learningRewards().pet.name+' says: You can do it! One question at a time.'};
  renderLearningRewards();save();
 }
