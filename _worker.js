@@ -14,7 +14,8 @@ const SOCIAL_SCHEMA = [
 ];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const AVATAR_OPTIONS = {skin:['peach','tan','brown','deep','rose','gold'],hair:['short','curly','spiky','bald'],hairColor:['brown','black','gold','purple','red'],shirt:['violet','mint','blue','pink','gold','red'],eyes:['happy','calm','wink'],accessory:['none','glasses','cap']};
-function avatarValue(value){if(!value||typeof value!=='object'||Array.isArray(value))return null;const result={};for(const [key,options] of Object.entries(AVATAR_OPTIONS)){if(!options.includes(value[key]))return null;result[key]=value[key]}return result}
+function validAvatarPhoto(photo){return typeof photo==='string'&&photo.length<=28000&&/^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]+={0,2}$/.test(photo)&&photo.slice(23).length%4===0}
+function avatarValue(value){if(!value||typeof value!=='object'||Array.isArray(value))return null;const result={};for(const [key,options] of Object.entries(AVATAR_OPTIONS)){if(!options.includes(value[key]))return null;result[key]=value[key]}if(value.photo!==undefined){if(!validAvatarPhoto(value.photo))return null;result.photo=value.photo}return result}
 function gamePeriods(now=Date.now()){
  const day=86400000,offset=8*3600000,local=new Date(now+offset),weekday=(local.getUTCDay()+6)%7;
  const monday=Math.floor((now+offset)/day)-weekday,start=monday*day-offset;
@@ -66,7 +67,7 @@ async function handleSocial(request,env){
  try{
   await db.batch([...SOCIAL_SCHEMA,...ACCOUNT_SCHEMA].map(sql=>db.prepare(sql)));const auth=await socialAuth(request,db,path==='/api/player'),period=gamePeriods(),stamp=new Date(Date.now()).toISOString();
   if(path==='/api/player'){
-   const data=await socialBody(request),name=typeof data.name==='string'?data.name.trim():'',avatar=avatarValue(data.avatar);
+   const data=await socialBody(request,40000),name=typeof data.name==='string'?data.name.trim():'',avatar=avatarValue(data.avatar);
    if(!/^[\p{L}\p{N}_ .-]{2,20}$/u.test(name)||!avatar)throw new SocialError(400,'Use a nickname of 2–20 letters or numbers and the available avatar options.');
    const occupied=await socialOne(db,'SELECT id FROM lq_players WHERE name=? AND id<>?',name,auth.id);if(occupied)throw new SocialError(409,'That nickname is taken. Please add an initial or a number.');
    try{await db.prepare('INSERT INTO lq_players(id,key_hash,name,avatar,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,avatar=excluded.avatar WHERE lq_players.key_hash=excluded.key_hash').bind(auth.id,auth.hash,name,JSON.stringify(avatar),stamp).run()}catch(error){if(String(error).includes('UNIQUE'))throw new SocialError(409,'That nickname is taken. Please choose another.');throw error}
@@ -138,7 +139,8 @@ async function handleAccount(request,env){
   if(path==='/api/account/progress'){
    const a=await accountSession(request,db);if(!a)throw new SocialError(401,'Please log in again. Your progress is kept on this device.');const data=await socialBody(request,1600000),progress=cleanProgress(data.progress);
    if(!Number.isSafeInteger(data.revision)||data.revision<1)throw new SocialError(400,'Invalid save version.');
-   const result=await db.prepare('UPDATE lq_accounts SET progress=?,revision=revision+1 WHERE player_id=? AND revision=?').bind(progress,a.player_id,data.revision).run();
+   const avatar=avatarValue(data.progress.social?.avatar);if(!avatar)throw new SocialError(400,'Invalid avatar.');
+   const results=await db.batch([db.prepare('UPDATE lq_players SET avatar=? WHERE id=? AND EXISTS(SELECT 1 FROM lq_accounts WHERE player_id=? AND revision=?)').bind(JSON.stringify(avatar),a.player_id,a.player_id,data.revision),db.prepare('UPDATE lq_accounts SET progress=?,revision=revision+1 WHERE player_id=? AND revision=?').bind(progress,a.player_id,data.revision)]),result=results[1];
    if(!result.meta?.changes)throw new SocialError(409,'Another device has newer progress. Export this device’s backup, then load the cloud version.');return json({saved:true,revision:data.revision+1});
   }
   if(!['/api/account/register','/api/account/login'].includes(path))return json({error:'Not found'},404);
@@ -165,9 +167,49 @@ async function handleAccount(request,env){
  }catch(error){if(error instanceof SocialError)return json({error:error.message},error.status);console.error('Account request failed',error);return json({error:'Account service is unavailable. Please try again.'},503)}
 }
 
+const FRIEND_SCHEMA=[
+ `CREATE TABLE IF NOT EXISTS lq_friendships (low TEXT NOT NULL, high TEXT NOT NULL, requested_by TEXT NOT NULL, status TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(low,high))`,
+ `CREATE TABLE IF NOT EXISTS lq_friend_blocks (blocker TEXT NOT NULL, blocked TEXT NOT NULL, PRIMARY KEY(blocker,blocked))`
+];
+async function handleFriendList(request,env){
+ const db=env.DB,path=new URL(request.url).pathname;
+ if(!['GET','POST'].includes(request.method))return json({error:'Method not allowed'},405);
+ if(request.method==='POST'&&request.headers.get('Origin')!==new URL(request.url).origin)return json({error:'Invalid origin'},403);
+ try{
+  await db.batch([...SOCIAL_SCHEMA,...ACCOUNT_SCHEMA,...FRIEND_SCHEMA].map(sql=>db.prepare(sql)));const own=await accountSession(request,db);if(!own)throw new SocialError(401,'Log in to add friends.');
+  if(path==='/api/friends'&&request.method==='GET'){
+   const rows=await socialAll(db,`SELECT f.status,f.requested_by,a.username,a.player_id,p.name,p.avatar,CASE WHEN f.status='accepted' THEN a.progress ELSE NULL END AS progress FROM lq_friendships f JOIN lq_accounts a ON a.player_id=CASE WHEN f.low=? THEN f.high ELSE f.low END JOIN lq_players p ON p.id=a.player_id WHERE f.low=? OR f.high=? ORDER BY f.created_at DESC LIMIT 100`,own.player_id,own.player_id,own.player_id);
+   const people=rows.map(r=>{let progress={};try{progress=JSON.parse(r.progress||'{}')}catch{}return {id:r.player_id,username:r.username,name:r.name,avatar:JSON.parse(r.avatar),status:r.status==='accepted'?'friend':r.requested_by===own.player_id?'sent':'received',...(r.status==='accepted'?{completed:Math.max(0,Math.min(1000000,Number(progress.completed)||0)),streak:Math.max(0,Math.min(1000000,Number(progress.streak)||0)),xp:/^\d{1,1000}$/.test(progress.lifetime||'')?progress.lifetime:'0'}:{})}});
+   const blocked=await socialAll(db,'SELECT b.blocked AS id,a.username,p.name FROM lq_friend_blocks b JOIN lq_accounts a ON a.player_id=b.blocked JOIN lq_players p ON p.id=b.blocked WHERE b.blocker=? LIMIT 100',own.player_id);return json({people,blocked});
+  }
+  if(request.method!=='POST')return json({error:'Not found'},404);const data=await socialBody(request);let target;
+  if(path==='/api/friends/request'){
+   const username=typeof data.username==='string'?data.username.trim().toLowerCase():'';if(!/^[a-z0-9_]{3,20}$/.test(username))throw new SocialError(400,'Enter your friend’s exact username.');target=await socialOne(db,'SELECT player_id FROM lq_accounts WHERE username=?',username);if(!target)throw new SocialError(404,'No account found with that username.');
+  }else{if(!UUID.test(data.id||''))throw new SocialError(400,'Invalid friend.');target=await socialOne(db,'SELECT player_id FROM lq_accounts WHERE player_id=?',data.id);if(!target)throw new SocialError(404,'Account not available.')}
+  const id=target.player_id;if(id===own.player_id)throw new SocialError(400,'That is your own account.');const [low,high]=[id,own.player_id].sort();
+  if(path==='/api/friends/block'){
+   const count=await socialOne(db,'SELECT COUNT(*) AS count FROM lq_friend_blocks WHERE blocker=?',own.player_id);if(count.count>=100)throw new SocialError(409,'Your block list is full.');await db.batch([db.prepare('INSERT OR IGNORE INTO lq_friend_blocks(blocker,blocked) VALUES(?,?)').bind(own.player_id,id),db.prepare('DELETE FROM lq_friendships WHERE low=? AND high=?').bind(low,high)]);return json({saved:true});
+  }
+  if(path==='/api/friends/unblock'){await db.prepare('DELETE FROM lq_friend_blocks WHERE blocker=? AND blocked=?').bind(own.player_id,id).run();return json({saved:true})}
+  if(await socialOne(db,'SELECT blocker FROM lq_friend_blocks WHERE (blocker=? AND blocked=?) OR (blocker=? AND blocked=?)',id,own.player_id,own.player_id,id))throw new SocialError(409,'A friend request is not available for this account.');
+  const existing=await socialOne(db,'SELECT * FROM lq_friendships WHERE low=? AND high=?',low,high);
+  if(path==='/api/friends/request'){
+   if(existing)throw new SocialError(409,existing.status==='accepted'?'You are already friends.':existing.requested_by===own.player_id?'Friend request already sent.':'This person has sent you a request. Accept it below.');
+   const now=Date.now(),key=await digest('friend:'+own.player_id);await db.prepare('INSERT INTO lq_login_limits(key,count,expires) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN expires<? THEN 1 ELSE count+1 END,expires=CASE WHEN expires<? THEN excluded.expires ELSE expires END').bind(key,now+3600000,now,now).run();if((await socialOne(db,'SELECT count FROM lq_login_limits WHERE key=?',key)).count>20)throw new SocialError(429,'Too many friend requests. Please try again later.');
+   const result=await db.prepare(`INSERT OR IGNORE INTO lq_friendships(low,high,requested_by,status,created_at) SELECT ?,?,?,'pending',? WHERE (SELECT COUNT(*) FROM lq_friendships WHERE low=? OR high=?)<100 AND (SELECT COUNT(*) FROM lq_friendships WHERE low=? OR high=?)<100 AND NOT EXISTS(SELECT 1 FROM lq_friend_blocks WHERE (blocker=? AND blocked=?) OR (blocker=? AND blocked=?))`).bind(low,high,own.player_id,now,own.player_id,own.player_id,id,id,own.player_id,id,id,own.player_id).run();if(!result.meta?.changes)throw new SocialError(409,'The friend list is full or this request already exists.');return json({saved:true});
+  }
+  if(path==='/api/friends/accept'){
+   const result=await db.prepare("UPDATE lq_friendships SET status='accepted' WHERE low=? AND high=? AND status='pending' AND requested_by<>?").bind(low,high,own.player_id).run();if(!result.meta?.changes)throw new SocialError(409,'Only the person receiving this request can accept it.');return json({saved:true});
+  }
+  if(path==='/api/friends/remove'){await db.prepare('DELETE FROM lq_friendships WHERE low=? AND high=?').bind(low,high).run();return json({saved:true})}
+  return json({error:'Not found'},404);
+ }catch(error){if(error instanceof SocialError)return json({error:error.message},error.status);console.error('Friend request failed',error);return json({error:'Friends are temporarily unavailable. Please retry.'},503)}
+}
+
 async function handle(request, env) {
     const url = new URL(request.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
+    if(url.pathname==='/api/friends'||url.pathname.startsWith('/api/friends/'))return env.DB?handleFriendList(request,env):json({error:'Friends are unavailable.'},503);
     if(url.pathname==='/api/account'||url.pathname.startsWith('/api/account/'))return env.DB?handleAccount(request,env):json({error:'Account service is unavailable.'},503);
     if (url.pathname !== '/api/leaderboard') {if(!env.DB)return json({error:'Online challenges are temporarily unavailable.'},503);return handleSocial(request,env);}
     if (!env.DB) return json({error:'Leaderboard is temporarily unavailable.'},503);

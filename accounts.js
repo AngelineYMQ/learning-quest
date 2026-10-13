@@ -9,7 +9,7 @@ function keepDeviceBackup(){try{localStorage.setItem('learningQuest_beforeLogin'
 function applyAccount(data){
  accountReady=false;test=null;pendingSession=data.progress.activeTest||null;state={...defaults,...data.progress,username:data.name,account:{username:data.username,id:data.id,revision:data.revision,dirty:false}};
  const s=extraState();s.id=data.id;s.key='0'.repeat(64);s.registered=true;s.avatar=cleanAvatar(data.avatar);profileNameDirty=false;matchSelection={left:null,right:null};displayedTeam=null;
- accountBlocked=false;accountChanged=false;save();render();showResume();renderPrimaryActivities();renderProfile();renderReview();renderMatching();$('quiz').hidden=true;$('results').hidden=true;$('setup').hidden=false;renderProfileDashboard();renderLearningRewards();accountLast=JSON.stringify(accountProgress());accountReady=true;renderAccount();accountMessage('Cloud progress loaded. Continue on any device with this account.');
+ accountBlocked=false;accountChanged=false;save();render();showResume();renderPrimaryActivities();renderProfile();renderReview();renderMatching();$('quiz').hidden=true;$('results').hidden=true;$('setup').hidden=false;renderProfileDashboard();renderLearningRewards();accountLast=JSON.stringify(accountProgress());accountReady=true;renderAccount();accountMessage('Cloud progress loaded. Continue on any device with this account.');if(typeof loadConnections==='function'&&document.body.dataset.page==='profile')loadConnections();
 }
 async function syncAccount(){
  if(!accountReady||!state.account||accountBusy||accountBlocked||!accountChanged)return;
@@ -34,7 +34,7 @@ async function submitAccount(mode){
 async function loadAccount(){if(accountBusy)return;accountBusy=true;try{keepDeviceBackup();applyAccount(await accountRequest(''))}catch(error){accountMessage(error.message)}finally{accountBusy=false}}
 async function logoutAccount(){
  await syncAccount();if(accountChanged){accountMessage('Your latest progress has not synced. Reconnect or resolve the save conflict before logging out.');return}if(accountBusy)return;
- accountBusy=true;try{await accountRequest('/logout','POST',{});accountReady=false;test=null;pendingSession=null;state={...defaults};save();render();showResume();renderProfile();renderReview();renderMatching();renderProfileDashboard();renderLearningRewards();accountBlocked=false;accountChanged=false;accountLast='';accountReady=true;renderAccount();accountMessage('Logged out. Your account progress is safely stored online.')}catch(error){accountMessage(error.message)}finally{accountBusy=false}
+ accountBusy=true;try{await accountRequest('/logout','POST',{});accountReady=false;test=null;pendingSession=null;state={...defaults};save();render();showResume();renderProfile();renderReview();renderMatching();renderProfileDashboard();renderLearningRewards();accountBlocked=false;accountChanged=false;accountLast='';accountReady=true;renderAccount();accountMessage('Logged out. Your account progress is safely stored online.');if(typeof loadConnections==='function')loadConnections()}catch(error){accountMessage(error.message)}finally{accountBusy=false}
 }
 async function initAccounts(){
  $('accountSetup').onclick=openAccountSetup;$('accountLater').onclick=()=>{accountSnoozedUntil=Date.now()+86400000;try{localStorage.setItem('learningQuest_accountReminderUntil',String(accountSnoozedUntil))}catch{}$('accountReminder').hidden=true};

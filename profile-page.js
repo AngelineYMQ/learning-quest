@@ -9,7 +9,7 @@ function openLearningPage(page,push=true){
  document.querySelectorAll('main>section.panel').forEach(panel=>panel.hidden=panel.id!==page);
  document.title=(page==='profile'?'Profile · ':'')+'Learning Quest';render();extraTabChanged(page);
  if(page==='leaderboard')loadLeaderboard();
- if(page==='profile'){renderProfileDashboard();if(typeof renderAccount==='function')renderAccount();loadLeague();loadFriends()}if(page==='companion'){$('petName').value=learningRewards().pet.name;$('petKind').value=learningRewards().pet.kind;renderLearningRewards();}
+ if(page==='profile'){renderProfileDashboard();if(typeof renderAccount==='function')renderAccount();if(typeof loadConnections==='function')loadConnections();loadLeague();loadFriends()}if(page==='companion'){$('petName').value=learningRewards().pet.name;$('petKind').value=learningRewards().pet.kind;renderLearningRewards();}
  if(page==='play'&&test&&!test.finished)$('quiz').scrollIntoView?.({block:'start'});else window.scrollTo?.({top:0,left:0,behavior:'instant'});
 }
 function profileDay(date=Date.now()){return new Date(date+8*3600000).toISOString().slice(0,10)}

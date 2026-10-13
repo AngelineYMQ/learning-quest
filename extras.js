@@ -2,7 +2,8 @@
 const EXTRA_AVATAR_OPTIONS={skin:['peach','tan','brown','deep','rose','gold'],hair:['short','curly','spiky','bald'],hairColor:['brown','black','gold','purple','red'],shirt:['violet','mint','blue','pink','gold','red'],eyes:['happy','calm','wink'],accessory:['none','glasses','cap']};
 const EXTRA_AVATAR_DEFAULT={skin:'peach',hair:'curly',hairColor:'brown',shirt:'mint',eyes:'happy',accessory:'none'};
 const EXTRA_TIERS=['🥉 Bronze','🥈 Silver','🥇 Gold','💠 Crystal','🏆 Master'];
-function cleanAvatar(value){const result={};for(const [key,options] of Object.entries(EXTRA_AVATAR_OPTIONS))result[key]=options.includes(value?.[key])?value[key]:EXTRA_AVATAR_DEFAULT[key];return result}
+function validAvatarPhoto(photo){return typeof photo==='string'&&photo.length<=28000&&/^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]+={0,2}$/.test(photo)&&photo.slice(23).length%4===0}
+function cleanAvatar(value){const result={};for(const [key,options] of Object.entries(EXTRA_AVATAR_OPTIONS))result[key]=options.includes(value?.[key])?value[key]:EXTRA_AVATAR_DEFAULT[key];if(validAvatarPhoto(value?.photo))result.photo=value.photo;return result}
 function extraState(){
  if(!state.social||typeof state.social!=='object'||Array.isArray(state.social))state.social={};const s=state.social;
  s.avatar=cleanAvatar(s.avatar);
@@ -21,6 +22,7 @@ function extraState(){
 }
 function playerIdentity(){const s=extraState();if(!/^[0-9a-f-]{36}$/i.test(s.id||'')||!/^[0-9a-f]{64}$/i.test(s.key||'')){s.id=crypto.randomUUID();s.key=[...crypto.getRandomValues(new Uint8Array(32))].map(n=>n.toString(16).padStart(2,'0')).join('');s.registered=false;save()}return s}
 function avatarSvg(value){
+ if(validAvatarPhoto(value?.photo))return '<img class="avatar-svg uploaded-avatar" src="'+value.photo+'" alt="Player avatar" width="128" height="128">';
  const a=cleanAvatar(value),skin={peach:'#ffdbc2',tan:'#eeb98d',brown:'#bd815b',deep:'#89573f',rose:'#ffd0d5',gold:'#f7d98b'}[a.skin],hair={brown:'#754b40',black:'#343247',gold:'#f5c260',purple:'#a88aee',red:'#d67863'}[a.hairColor],shirt={violet:'#aa9cff',mint:'#80dfc3',blue:'#86c6f4',pink:'#f4a8c9',gold:'#f4d078',red:'#f2919c'}[a.shirt];
  const hairShape={short:'<path d="M24 57Q18 20 53 19Q88 18 89 53L77 43Q66 53 52 37Q45 51 24 57Z"/>',curly:'<path d="M23 58Q14 46 22 35Q19 22 33 22Q36 11 49 17Q62 8 70 20Q86 17 87 32Q99 38 87 57L76 45Q61 51 50 37Q41 52 23 58Z"/>',spiky:'<path d="M22 58L20 30L33 34L38 14L51 27L65 12L70 30L87 25L89 57L74 44L60 48L47 36L35 51Z"/>',bald:''}[a.hair];
  const eye='<ellipse cx="37" cy="60" rx="7" ry="10" fill="#393348"/><ellipse cx="70" cy="60" rx="7" ry="10" fill="#393348"/><ellipse cx="35" cy="56" rx="2.7" ry="3.5" fill="white"/><ellipse cx="68" cy="56" rx="2.7" ry="3.5" fill="white"/><circle cx="40" cy="65" r="1.4" fill="#b9a4dc"/><circle cx="73" cy="65" r="1.4" fill="#b9a4dc"/>';
@@ -121,7 +123,7 @@ function renderExtrasSummary(){
  $('monthlyBadges').replaceChildren();for(const month of s.monthBadges.filter(x=>/^\d{4}-\d{2}$/.test(x)).sort().reverse()){const card=document.createElement('div');card.className='monthly-badge';card.textContent='🏅 '+month;$('monthlyBadges').appendChild(card)}if(!s.monthBadges.length)$('monthlyBadges').textContent='Your monthly badges will appear here.';
  $('pendingCount').textContent=s.pending.length?s.pending.length+' rounds waiting to sync':'';if(typeof renderProfileDashboard==='function')renderProfileDashboard();
 }
-function renderProfile(){const s=extraState();if(!profileNameDirty)$('profileName').value=state.username;for(const key of Object.keys(EXTRA_AVATAR_OPTIONS))$('avatar'+key).value=s.avatar[key];$('avatarPreview').innerHTML=avatarSvg(s.avatar);renderExtrasSummary()}
+function renderProfile(){if(typeof renderAvatarUpload==='function')renderAvatarUpload();const s=extraState();if(!profileNameDirty)$('profileName').value=state.username;for(const key of Object.keys(EXTRA_AVATAR_OPTIONS))$('avatar'+key).value=s.avatar[key];$('avatarPreview').innerHTML=avatarSvg(s.avatar);renderExtrasSummary()}
 function renderReviewSubjects(){const selected=$('reviewSubject').value;$('reviewSubject').replaceChildren();$('reviewSubject').add(new Option('All mistakes','All'));for(const subject of [...new Set(Object.values(extraState().book).filter(item=>validExtraQuestion(item.question)).map(item=>item.subject))])$('reviewSubject').add(new Option(subject,subject));if([...$('reviewSubject').options].some(item=>item.value===selected))$('reviewSubject').value=selected;}
 function extraTabChanged(tab){if(tab==='challenges'){renderReviewSubjects();renderReview();renderMatching();renderExtrasSummary();loadFriends()}else if(tab==='profile')renderProfile();else if(tab==='leaderboard')loadLeague()}
 function initExtras(){
