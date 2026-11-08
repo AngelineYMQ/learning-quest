@@ -1,5 +1,5 @@
 'use strict';
-window.openBusinessAdventure=function(){
+window.openBusinessAdventure=function(options={}){
  const root=document.getElementById('courseContent');
  state.courses=state.courses||{};
  const adventureKey='learningQuest_companyAdventure_'+(state.account?.username||state.username||'guest');
@@ -53,6 +53,7 @@ window.openBusinessAdventure=function(){
  category.onchange=render;search.oninput=render;render();
  }
  function draw(){
+ window.learningNavigate?.('/business/setup');
  root.replaceChildren(btn('← Back to courses',()=>document.getElementById('coursesNav').click()),el('h2','🏗️ My Singapore Company Adventure'),el('p','PRETEND PLAY ONLY · No real registration, bank account, tenancy or payment. Use an invented business name. Never enter identity numbers, passwords or addresses.'));
  const meter=el('progress');meter.max=7;meter.value=game.step;meter.setAttribute('aria-label','Company adventure progress');root.append(meter);
  if(game.step>0)root.append(btn('🧭 Explore a different industry',()=>{game.step=0;commit();draw()}));line(stages.map((s,i)=>(i===game.step?'▶ ':'')+(i+1)+'. '+s).join(' · '));root.append(el('h3',stages[game.step]));
@@ -74,4 +75,5 @@ window.openBusinessAdventure=function(){
  const refs=el('details');refs.append(el('summary','Grown-up sources · checked 8 November 2026'));[['SingStat: official SSIC 2025 directory','https://www.singstat.gov.sg/standard-classifications/national-classifications/singapore-standard-industrial-classification-ssic'],['ACRA: selecting SSIC activities','https://www.acra.gov.sg/register/business/choosing-reserving-a-business-name/finding-the-right-ssic-code/'],['ACRA: registration and next steps','https://www.acra.gov.sg/register/business/after-registering/local-company/'],['ACRA: company registration','https://www.acra.gov.sg/register/business/registering-different-business-structures/local-company/registering-via-bizfile/'],['SFA: food shop application','https://www.sfa.gov.sg/food-retail/licence-permit/application-process-fees-for-licence-permit-for-food-retail']].forEach(([t,u])=>{const a=el('a',t);a.href=u;a.target='_blank';a.rel='noopener';const n=el('p');n.append(a);refs.append(n)});root.append(refs);root.scrollIntoView({block:'start'});
  }
  draw();
+ if(options.run&&game.step===7){const {b,p,setup,deposit}=summary();window.openCompanyOperations({game,b,place:p,setup,deposit,commit,onback:draw})}
 };
