@@ -25,6 +25,7 @@
  }
  window.CompanyRunEngine={init,play,events};
  window.openCompanyOperations=function(context){
+ window.learningNavigate?.('/business/run');
  const {game,b,place,setup,deposit,commit,onback}=context,root=document.getElementById('courseContent');
  if(!game.operations){game.operations=init({kind:game.kind,capital:game.cash,setup,stockBudget:b.stock,rent:place[1],deposit,loan:game.fundingSource==='loan'});commit()}
  const money=n=>'$'+Number(n).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
