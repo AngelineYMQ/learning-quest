@@ -3,7 +3,7 @@ const PROFILE_PAGES=['play','challenges','profile','companion','shop','shield','
 let profilePage='play';
 function openLearningPage(page,push=true){
  if(!PROFILE_PAGES.includes(page))page='play';profilePage=page;
- if(push&&location.hash!=='#/'+page)history.pushState({page},'','#/'+page);
+ if(push){if(window.learningNavigate)window.learningNavigate('/'+page);else if(location.pathname!=='/'+page)history.pushState({page},'','/'+page)}
  document.body.dataset.page=page;if(typeof renderAccountReminder==='function')renderAccountReminder();
  document.querySelectorAll('[data-tab]').forEach(button=>button.classList.toggle('active',button.dataset.tab===page));
  document.querySelectorAll('main>section.panel').forEach(panel=>panel.hidden=panel.id!==page);
@@ -44,5 +44,5 @@ async function copyProfileProgress(){const text=state.username+' · Learning Que
 function initProfilePage(){
  document.querySelectorAll('[data-tab]').forEach(button=>button.onclick=()=>openLearningPage(button.dataset.tab));
  $('profileGoal').onchange=()=>{gameState().goal=Number($('profileGoal').value);save();renderGame();renderProfileDashboard()};$('profileShare').onclick=copyProfileProgress;
- const restore=()=>{const page=location.hash?.replace(/^#\//,'')||'play';if(profilePage!==page||document.body.dataset.page!==page)openLearningPage(page,false)};window.addEventListener('popstate',restore);window.addEventListener('hashchange',restore);profileProgress();save();restore();
+ const restore=()=>{if(window.restoreLearningRoute){window.restoreLearningRoute();return}const page=location.hash?.replace(/^#\//,'')||'play';if(profilePage!==page||document.body.dataset.page!==page)openLearningPage(page,false)};window.addEventListener('popstate',restore);window.addEventListener('hashchange',restore);profileProgress();save();restore();
 }
