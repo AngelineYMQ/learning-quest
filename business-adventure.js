@@ -2,12 +2,14 @@
 window.openBusinessAdventure=function(){
  const root=document.getElementById('courseContent');
  state.courses=state.courses||{};
+ const adventureKey='learningQuest_companyAdventure_'+(state.account?.username||state.username||'guest');
+ try{const local=JSON.parse(localStorage.getItem(adventureKey)||'null');if(local&&Number.isInteger(local.step)&&local.step>=0&&local.step<=7&&['cafe','design','retail'].includes(local.kind)&&typeof local.name==='string'&&local.checks&&local.cash===30000&&(local.updatedAt||0)>(state.courses.businessAdventure?.updatedAt||0))state.courses.businessAdventure=local}catch{}
  const game=state.courses.businessAdventure=state.courses.businessAdventure||{step:0,kind:'cafe',name:'Pip’s Little Company',place:0,checks:{},cash:30000};
  const businesses={cafe:{label:'🥪 A little café',equipment:7000,stock:1200,places:[['Neighbourhood shop',1800,2],['Busy mall unit',4200,3],['Small approved food unit',2400,2]]},design:{label:'🎨 A digital design studio',equipment:1800,stock:100,places:[['Suitable home workspace',0,0],['Shared workspace',600,1],['Private office',2200,2]]},retail:{label:'🎁 A gift shop',equipment:2500,stock:2000,places:[['Neighbourhood shop',1500,2],['Mall shop',3800,3],['Online shop and suitable storage',350,1]]}};
  const stages=['Dream it','Name it','Register','Bank','Find a place','Plan your cash','Get ready','Opening day'];
  function el(tag,text){const n=document.createElement(tag);if(text)n.textContent=text;return n}
  function btn(text,fn){const b=el('button',text);b.onclick=fn;return b}
- function commit(){save()}
+ function commit(){game.updatedAt=Date.now();state.courses=state.courses||{};state.courses.businessAdventure=game;try{localStorage.setItem(adventureKey,JSON.stringify(game))}catch{}save()}
  function line(t){root.append(el('p',t))}
  function next(){game.step++;commit();draw()}
  function select(label,options,value,onchange){const l=el('label',label),s=el('select');options.forEach(([v,t])=>{const o=el('option',t);o.value=v;s.append(o)});s.value=value;s.onchange=()=>onchange(s.value);l.append(s);root.append(l)}
